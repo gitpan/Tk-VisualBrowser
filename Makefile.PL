@@ -5,8 +5,15 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
     NAME              => 'Tk::VisualBrowser',
     VERSION_FROM      => 'lib/Tk/VisualBrowser.pm', # finds $VERSION
-    PREREQ_PM         => {Tk::XPMs => 1.03}, # e.g., Module::Name => 1.1
-    dist => { POSTOP => ('@echo "************  ACHTUNG: Sind README, Changes und MANIFEST ok ? *******"') },
+    PREREQ_PM         => {
+      Tk => 804.027,
+      Tk::XPMs => 1.03
+    }, # e.g., Module::Name => 1.1
+    dist => {
+      POSTOP => ('@echo "************  ATTENTION: are README, Changes und MANIFEST ok ? *******"'),
+      TARFLAGS => '--create --verbose --mode=0700 --file',
+    },
+    
     'PM' =>
     {
       'lib/Tk/VisualBrowser.pm' => '$(INST_LIBDIR)/VisualBrowser.pm',

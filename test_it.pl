@@ -11,7 +11,7 @@ my $top = MainWindow->new;
 
 my $vb;
 
-my $VERSION = 1.01;
+my $VERSION = 1.03;
 
 my $simulate_create_thumbs = 0;
 # Menubar
@@ -26,6 +26,14 @@ $menubar->cascade(-label => "~File",
     [command => 'Deselect all', '-command', sub{ $vb->deselect_all }],
 
     [qw/command Exit -command/, sub{ exit }],
+  ],
+);
+$menubar->cascade(-label => "~Configure",
+  -menuitems =>
+  [
+    [command => '4 rows, 4 columns', '-command', sub{ $vb->configure(-rows =>4, -cols =>4) }],
+    [command => '5 rows, 8 columns', '-command', sub{ $vb->configure(-rows =>5, -cols =>8) }],
+    [command => '-use_labels=> 0', '-command', sub{ $vb->configure(-use_labels => 0, -rows =>5, -cols =>8) }],
   ],
 );
 $menubar->cascade(-label => "~Help",
@@ -50,13 +58,19 @@ my $cb_sim_crthb = $frm1->Checkbutton(
 
 
 #$vb = $top->VisualBrowser(-rows => 8, -cols => 8)->pack;
-$vb = $top->VisualBrowser()->pack;
+$vb = $top->VisualBrowser(-use_labels=> 1, -use_balloons => 1)->pack;
 my @IMG =();
 
 my $dir = "test-thumbs";
+my @Title;
+my @Label;
+my $i = 0;
 opendir(D, $dir) or die "Can't open directory $dir: $!\n";  
 foreach my $file(readdir(D)){
   push @IMG, "$dir/$file" if $file =~ /^th/; 
+  $i++;
+  push @Title, "Bild Nr. $i";
+  push @Label, "Image $i";
 } # foreach $file
 
 my @IMG2 = @IMG; # copy
@@ -65,6 +79,8 @@ $vb->configure(-pictures => \@IMG,
   -rows => 5, -cols => 8,
   -thumbnail => \&get_thb,
   -highlight => "yellow",
+  -balloon_texts => \@Title,
+  -label_texts => \@Label,
 );
 
 

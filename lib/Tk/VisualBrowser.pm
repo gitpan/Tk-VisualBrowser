@@ -1,11 +1,14 @@
 package Tk::VisualBrowser;
 
-$VERSION = "0.13";
+$VERSION = "0.14";
 
+# TODO Font, anchor für Label per option 
+#
 use Carp;
 use File::Basename;
 use Tk;
 use Tk::Event;
+use Tk::Balloon;
 #use Tk::ErrorDialog;
 use Tk::XPMs qw(:arrows);
 
@@ -59,8 +62,9 @@ Tk::VisualBrowser - Visual Browser for image directories
 =head1 DESCRIPTION
 
 C<Tk::VisualBrowser> is a megawidget which displays a matrix of 
-C<-rows> x C<-cols> Labels with thumbnail images. It can be used,
-for example, to create a visual directory browser for image directories.
+(C<-rows>) x (C<-cols>) Labels with thumbnail images. It can be used,
+for example, to create a visual directory browser for image directories
+or an interactive program for sorting images (dia-sorter.pl).
 
 The application program must provide a reference to a list of image
 filenames and a handler which returns the filename of a corresponding
@@ -75,8 +79,8 @@ normal file browser). Ctrl-click allows adding or removing single thumbnails
 from a selection.
 
 The selected thumbnails may be moved around with the left mouse button.
-The cursor image changes and all thumbnail which is currently under the
-mouse will be highlighted while moving around. Releasing the mous button
+The cursor image changes and all thumbnails which are currently under the
+mouse will be highlighted while moving around. Releasing the mouse button
 inserts the selected thumbnails before the current position.
 
 When moving around, an automatic scroll up or down is triggered when the
@@ -137,7 +141,7 @@ pathnames.
 
 The application can specify its own handlers for mousebutton events, e. g.:
 
-  $vsb->configure(-doubel_b1_handler => my_double_1);
+  $vsb->configure(-doubel_b1_handler => \&my_double_1);
 
   sub my_double_1 {
     my ($image_filename) = @_;
@@ -167,7 +171,44 @@ thumbnail under the cursor with C<-highlight> color to indicate the
 current insert position.
 
 NOTE: Color options must be specified at the very beginning, when the
-C<VisualBrowser> is instantiated. Later reconfigurations may have no effet.
+C<VisualBrowser> is instantiated. Later reconfigurations may have no effect.
+
+It is possible to provide a handler which makes sure that certain images
+get a different background color (for example to indicate that these
+images have been changed recently):
+
+  $vsb->configure(-special_color => \&my_color_hdlr);
+
+  sub my_color_hdlr {
+    my ($image_filename) = @_;
+
+    # decide if $image_filname needs to be displayed with a different
+    # background color:
+    if ( -M $image_filename < 7 ) {
+      return "#cc2222"; # use special bg color
+    }
+
+    return 0; # no special color
+  }
+
+=head2 Labels and Balloons
+
+It is possible to use Labels for each image and to have balloon messages on each image (i. e.
+a small window with text pops up when the cursor hovers over an image). In order to activate this
+features use the following options:
+
+  -use_labels      => 1
+  -use_balloons    => 1
+
+The default text for labels and balloons are the basenames of the image filenames. You can, however,
+set the labels and balloon texts indiviually by passing references to corresponding arrays the the
+VisualBrowser:
+
+  -balloon_texts => \@Array_with_balloon_texts
+  -label_texts   => \@Array_with_label_texts
+
+This may be used, for example, to prepare an array with text for each image which contains the filename
+and EXIF information for the image.
 
 =head1 METHODS
 
@@ -218,6 +259,20 @@ not the filenames.
   return @LIST; 
 } # get_selected_idx }}}
 
+sub select { # {{{
+
+=head2 $vsb->select($idx);
+
+Select specified picture with index $idx. Note that other pictures are not
+deselected automatically.
+
+=cut
+
+  my ($w, $z) = @_;
+  $w->{SEL}[$z] = 1;
+  _select_pic($w, $z, 1);
+} # select }}}
+
 sub select_all { # {{{
 
 =head2 $vsb->select_all;
@@ -259,13 +314,23 @@ this list via C<-pictures>.
 =cut
 
   my ($w) = @_;
-  # Alle selektierten Bilder aus der Liste rauswerfen
+  # delete all selected pictures from list
+  # when there are labels and/or balloons: delete from theses lists also
   for (my $i = @{$w->{SEL}} -1; $i>=0; $i--){
       if ($w->{SEL}[$i]) {
       splice( @{ $w->cget('-pictures') }, $i, 1) ;
+      my $lref = $w->cget('-label_texts');
+      if ($lref and ref($lref) eq 'ARRAY' and @$lref) {
+        splice( @{ $w->cget('-label_texts') }, $i, 1) ;
+      }
+      my $bref = $w->cget('-balloon_texts');
+      if ($bref and ref($bref) eq 'ARRAY' and @$bref and $bref != $lref) {
+        splice( @{ $w->cget('-balloon_texts') }, $i, 1) ;
+      }
     }
   }
   @{$w->{SEL}}  = map {0} @{$w->cget('-pictures')};
+
   scroll($w, $w->{posi});
 
 }# remove_selected }}}
@@ -291,10 +356,22 @@ NOTE: The user must have selected exactly two pictures.
     return 0;    # not ok, need exactly two selected images
   }
 
-  # andernfalls: PICS bearbeiten und neu Abbilden
+  # ok: swap pics and display again
   my $pref = $w->cget('-pictures');
   ($$pref[ $SL[0] ], $$pref[ $SL[1] ]) =
   ($$pref[ $SL[1] ], $$pref[ $SL[0] ]);
+
+  # if we have labels and/or ballons: swap also:
+  my $lref = $w->cget('-label_texts');
+  if ($lref and ref($lref) eq 'ARRAY' and @$lref) {
+    ($$lref[ $SL[0] ], $$lref[ $SL[1] ]) =
+    ($$lref[ $SL[1] ], $$lref[ $SL[0] ]);
+  }
+  my $bref = $w->cget('-balloon_texts');
+  if ($bref and ref($bref) eq 'ARRAY' and @$bref and $bref != $lref) {
+    ($$bref[ $SL[0] ], $$bref[ $SL[1] ]) =
+    ($$bref[ $SL[1] ], $$bref[ $SL[0] ]);
+  }
   $w->{SEL}[ $SL[0] ] = 0;  # deselect ...
   $w->{SEL}[ $SL[1] ] = 0;  # deselect ...
   
@@ -338,6 +415,8 @@ In order to go to the first image, you should use the numeric value 0.
   my $ps = $w->{posi};
   my $picref = $w->cget('-pictures');
   my $max = $#{$picref};
+  my $blnref = $w->cget('-balloon_texts');
+  my $lblref = $w->cget('-label_texts');
 
   my $anz = $r * $c;
   if ($pos =~ /^\d+$/){ # absolute
@@ -359,6 +438,8 @@ In order to go to the first image, you should use the numeric value 0.
   # Picture with index $k is placed in upper left corner
   my ($color, $relief) = ("#CCCCCC", "flat");
   $do_scroll = 0;
+  my $use_balloon = $w->cget('-use_balloons');
+  my $use_labels  = $w->cget('-use_labels');
   for (my $i = 0; $i < $r; $i++){
     for (my $j = 0; $j < $c; $j++){
       if ( $k <= $max and $k >= 0 ){
@@ -369,7 +450,23 @@ In order to go to the first image, you should use the numeric value 0.
         if (! -e $thmb){
           $thmb = $w->{pic_path}."/vis-dummy.gif";
         }
+        my $name = basename($$picref[$k]);
+
         $w->{Photo}[$i][$j] -> configure( -file => $thmb );
+        if ($use_labels) {
+          if ( @{ $w->cget('-label_texts')} ) {
+            $name = $$lblref[$k];
+          }
+          $w->{Label}[$i][$j]  = $name;
+        }
+
+        if ($use_balloon) {
+          if ( @{ $w->cget('-balloon_texts')} ) {
+            $name = $$blnref[$k];
+          }
+          $w->{bln}->detach( $w->{Thmb}[$i][$j]);
+          $w->{bln}->attach( $w->{Thmb}[$i][$j], -balloonmsg => "$name");
+        }
         $w->{Thmb}[$i][$j]  -> configure(
                                          -width => 80,
                                          -height => 80,
@@ -379,6 +476,12 @@ In order to go to the first image, you should use the numeric value 0.
                               );
       } else { # empty pictures after the end of our list
         $thmb = $w->{pic_path}."/vis-empty.gif";
+        if ($use_labels) {
+          $w->{Label}[$i][$j]  = "";
+        }
+        if ($use_balloon) {
+          $w->{bln}->detach( $w->{Thmb}[$i][$j]);
+        }
         $w->{Photo}[$i][$j] -> configure( -file => $thmb );
         $w->{Thmb}[$i][$j]  -> configure(
                                          -width => 80,
@@ -422,7 +525,7 @@ sub Populate { # {{{
     -double_b1_handler => [CALLBACK => undef, undef, undef],
     -double_b2_handler => [CALLBACK => undef, undef, undef],
     -double_b3_handler => [CALLBACK => undef, undef, undef],
-    -pictures          => [METHOD => undef, undef, undef],
+    -pictures          => [METHOD => undef, undef, []],
     -thumbnail         => [CALLBACK => undef, undef, sub{ return "nix is" }],
     -special_color     => [CALLBACK => undef, undef, sub{ return 0 }],
     -highlight         => [PASSIVE => undef, undef, "#3F8856"],
@@ -431,6 +534,10 @@ sub Populate { # {{{
     -bg_color1         => [PASSIVE => undef, undef, "#BBBBBB"],
     -cursor_fg         => [PASSIVE => undef, undef, "white"],
     -cursor_bg         => [PASSIVE => undef, undef, "brown"],
+    -use_labels        => [PASSIVE => undef, undef, 0],
+    -use_balloons      => [PASSIVE => undef, undef, 0],
+    -balloon_texts     => [METHOD => undef, undef, []],
+    -label_texts       => [METHOD => undef, undef, []],
   );
 
 } # Populate }}}
@@ -479,6 +586,10 @@ sub rebuild { # {{{
   my $pfeil_n  = $w->Pixmap(-data => arrow_next_xpm);
 
   my $frm_but = $w->Frame()->pack;
+
+  if ($w->cget('-use_balloons')) {
+    $w->{bln} = $w->Balloon;
+  }
 
   my $mm = $rows * $cols;
   my $b_fst = $frm_but->Button(#-text => "|<",
@@ -537,6 +648,8 @@ sub rebuild { # {{{
 
   $w->{ysb} = $frm_pan->Scrollbar( -command => [yview=>$w], );
   $w->{ysb} -> pack(-side => 'left', -fill => 'y');
+  my $use_labels = $w->cget('-use_labels');
+  my $row_fakt = $use_labels ? 2 : 1;
 
 # print " === rows: $rows,  cols: $cols\n";
 
@@ -550,8 +663,22 @@ sub rebuild { # {{{
         -height => 80,
         -background => $w->cget("-bg_color"),
         -image      => $w->{Photo}[$i][$j],
-      ) -> grid( -column => $j, -row => $i, 
+      ) -> grid( -column => $j, -row => $i*$row_fakt, 
                  -sticky => "w", -padx => 3, -pady => 3);
+
+      if ($use_labels ) {
+        $w->{Label}->[$i][$j] = "$i $j";
+        push @{ $w->{OBJECTS} },
+        $w->{Lbl} ->[$i][$j] = $frm_pic->Label(
+        -width  => 12,
+        -anchor => "center",
+        -background => $w->cget("-bg_color"),
+        -textvariable      => \$w->{Label}[$i][$j],
+        ) -> grid( -column => $j, -row => $i*2 + 1, 
+                 -sticky => "w", -padx => 3, -pady => 3);
+
+      }
+
 
       my $kx = $i*($cols) + $j;
       my ($ii, $jj) = ($i, $j);
@@ -586,6 +713,47 @@ sub _move_selected { # {{{
   # Then insert new list at insert position.
   #
   my @MOVE_PICS;
+  my $pos_back = $pos;
+
+  # handle label texts {{{
+  @MOVE_PICS = ();
+  $pos = $pos_back;
+  my $lref = $w->cget('-label_texts');
+  if ($lref and ref($lref) eq 'ARRAY' and @$lref) {
+    for (my $i = @{$w->{SEL}} -1; $i>=0; $i--){
+        if ($w->{SEL}[$i]) {
+          push @MOVE_PICS, splice( @{ $w->cget('-label_texts') }, $i, 1) ;
+          $pos -- if $pos ne "end" and $pos > $i;
+      }
+    }
+    if ($pos eq "end"){
+      push @{ $w->cget('-label_texts') }, reverse @MOVE_PICS;
+    } else {
+      splice @{ $w->cget('-label_texts') }, $pos, 0, reverse @MOVE_PICS;
+    }
+  } # }}}
+
+  # handle balloon texts {{{
+  @MOVE_PICS = ();
+  $pos = $pos_back;
+  my $bref = $w->cget('-balloon_texts');
+  if ($bref and ref($bref) eq 'ARRAY' and @$bref and $bref != $lref) {
+    for (my $i = @{$w->{SEL}} -1; $i>=0; $i--){
+        if ($w->{SEL}[$i]) {
+          push @MOVE_PICS, splice( @{ $w->cget('-balloon_texts') }, $i, 1) ;
+          $pos -- if $pos ne "end" and $pos > $i;
+      }
+    }
+    if ($pos eq "end"){
+      push @{ $w->cget('-balloon_texts') }, reverse @MOVE_PICS;
+    } else {
+      splice @{ $w->cget('-balloon_texts') }, $pos, 0, reverse @MOVE_PICS;
+    }
+  } # }}}
+
+  # the same procedure has to be done for the pictures
+  @MOVE_PICS = ();
+  $pos = $pos_back;
   for (my $i = @{$w->{SEL}} -1; $i>=0; $i--){
       if ($w->{SEL}[$i]) {
         push @MOVE_PICS, splice( @{ $w->cget('-pictures') }, $i, 1) ;
@@ -594,7 +762,6 @@ sub _move_selected { # {{{
   }
   if ($pos eq "end"){
     push @{ $w->cget('-pictures') }, reverse @MOVE_PICS;
-  # scroll($w, 9999);
     scroll($w, $w->{posi});
   } else {
     splice @{ $w->cget('-pictures') }, $pos, 0, reverse @MOVE_PICS;
@@ -676,6 +843,26 @@ sub pictures { # {{{
     $w->{pictures} 
   }
 } # pictures }}}
+
+sub balloon_texts { # {{{
+  my ($w, $ref) = @_;
+
+  if ($#_ > 0){ # configure
+    $w->{balloon_texts} = $ref;
+  } else { # cget request
+    $w->{balloon_texts} 
+  }
+} # balloon_texts }}}
+
+sub label_texts { # {{{
+  my ($w, $ref) = @_;
+
+  if ($#_ > 0){ # configure
+    $w->{label_texts} = $ref;
+  } else { # cget request
+    $w->{label_texts} 
+  }
+} # label_texts }}}
 
 sub rows { # {{{
   my ($w, $r) = @_;
@@ -1072,7 +1259,7 @@ __END__
 
 Lorenz Domke, E<lt>lorenz.domke@gmx.deE<gt>
 
-=head1 BUGS
+=head1 BUGS AND KNOWN ISSUES
 
 Sure you will find some ...
 
@@ -1087,10 +1274,16 @@ does not work! You B<must> configure rows and columns after that:
 It is not yet possible to use PNG files or other formats for the
 thumbnail pictures. Maybe in one of the next releases.
 
+The options C<-use_labels> and C<-use_balloons> must be specified durung instantiation:
+
+ $vb = $parent->VisualBrowser(-use_labels => 1, -use_balloons => 1);
+
+It is not possible to change this via $vb->configure.
+ 
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2005 by Lorenz Domke
+Copyright (C) 2008 by Lorenz Domke
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.8.2 or,

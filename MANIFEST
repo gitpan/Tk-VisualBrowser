@@ -2,7 +2,8 @@ Changes
 Makefile.PL
 MANIFEST
 README
-t/Tk-VisualBrowser.t
+t/vb-basic.t
+t/vb-labels.t
 lib/Tk/VisualBrowser.pm
 lib/Tk/vis-dummy.gif
 lib/Tk/vis-empty.gif

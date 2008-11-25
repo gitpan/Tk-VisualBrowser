@@ -1,5 +1,11 @@
 Revision history for Perl extension Tk::VisualBrowser.
 
+0.14  Mon Nov 24 13:12:54 2008
+  - $vb->select($idx)
+  - more tests
+  - optional lables for images (basename of image filename or array of labels)
+  - optional balloon texts for images (basename of image filename or array of texts)
+
 0.13  Tue Jun 12 15:34:25 2007
   - Terminate test with $top->after(3000, ...)
 

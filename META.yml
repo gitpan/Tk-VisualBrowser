@@ -1,11 +1,15 @@
-# http://module-build.sourceforge.net/META-spec.html
-#XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
-name:         Tk-VisualBrowser
-version:      0.13
-version_from: lib/Tk/VisualBrowser.pm
-installdirs:  site
-requires:
+--- #YAML:1.0
+name:                Tk-VisualBrowser
+version:             0.14
+abstract:            Visual Browser for image directories
+license:             ~
+author:              
+    - Lorenz Domke <lorenz.domke\@gmx.de>
+generated_by:        ExtUtils::MakeMaker version 6.42
+distribution_type:   module
+requires:     
+    Tk:                            804.027
     Tk::XPMs:                      1.03
-
-distribution_type: module
-generated_by: ExtUtils::MakeMaker version 6.17
+meta-spec:
+    url:     http://module-build.sourceforge.net/META-spec-v1.3.html
+    version: 1.3

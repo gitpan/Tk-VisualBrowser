@@ -5,7 +5,7 @@
 
 # change 'tests => 1' to 'tests => last_test_to_print';
 
-use Test::More tests => 10;
+use Test::More tests => 14;
 BEGIN { use_ok('Tk::VisualBrowser') };
 
 #########################
@@ -105,6 +105,14 @@ $vb->deselect_all;
 @sel = $vb->get_selected;
 is( scalar @sel, 0, "deselect all");
 
+$vb->select(3);
+$vb->select(4);
+@sel = $vb->get_selected_idx;
+ok( eq_array(\@sel, [3, 4]), "select 3, 4");
+@sel = $vb->get_selected;
+ok( eq_array(\@sel, [$IMG[3], $IMG[4]]), "select names 3, 4");
+$vb->deselect_all;
+
 # swap two pictures
 ($IMG2[3], $IMG2[5]) = ($IMG2[5], $IMG2[3]);
 $vb->{SEL}[5] = 1;  # whitebox test ...
@@ -134,7 +142,10 @@ $bg = $vb->{Thmb}[0][1]->cget(-background);
 is($bg, "#c3c3c3", "bg Thmb");
 
 #======================
+if (! $ENV{INTERACTIVE_MODE}){
+$top->after(1500, sub{ remove_test();} );
 $top->after(3000, sub{ ok(1, "exit automatically"); exit} );
+}
 MainLoop;
 
 sub get_thb {
@@ -176,6 +187,20 @@ sub show_files { #{{{
   }
 } # show_files }}}
 
+sub remove_test { # {{{
+  $vb->deselect_all();
+  $vb->select(3);
+  $vb->select(5);
+  $vb->remove_selected();
+  $vb->select_all();
+  my @sel = $vb->get_selected;
+  print "@sel\n";
+  print "@IMG\n";
+  splice(@IMG2, 5, 1);
+  splice(@IMG2, 3, 1);
+  ok( eq_array(\@sel, \@IMG), "select after remove");
+  ok( eq_array(\@sel, \@IMG2), "select after remove");
+} # remove_test }}}
 __END__
 
  vim:ft=perl:foldmethod=marker:foldcolumn=4
